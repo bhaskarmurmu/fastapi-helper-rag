@@ -31,3 +31,35 @@ Things I'm not sure about yet:
 
 Plan for next session: Phase 1. config.py, models.py, exceptions, logging setup.
 
+
+
+## 2026-04-27 — day 1 / phase 1: plumbing
+
+Plumbing day. config.py, models.py, exceptions.py, logging_setup.py. No
+interesting RAG logic yet but everything has tests so I won't be debugging
+config issues at 2am later.
+
+Choices:
+- pydantic-settings for config. reads env vars, validates types, exposes
+  a module-level `settings` singleton.
+- json structured logging from day 1. probably overkill locally but pays
+  off when langfuse + prod logs come in.
+- pythonpath = ["src"] in pyproject.toml so I don't need pip install -e .
+  every time.
+
+Two windows-specific things hit me today:
+1. uv isn't on the default PATH after install. Had to call it as
+   C:\Users\bhmurmu\.local\bin\uv.exe. Need to add to PATH or alias it.
+2. PowerShell blocks .ps1 scripts by default — venv activation failed
+   with "running scripts is disabled." Fixed with
+   `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser`. Should add this
+   to README for any Windows users.
+
+30 unit tests passing. Mostly env var loading and llm_provider validation.
+Felt over-engineered for config but I bet I'll be glad later when something
+silently breaks and the test catches it.
+
+Next: phase 2, ingestion. docs_loader → chunker → embedder → indexer.
+This is where the actual RAG work starts and the BGE model gets downloaded
+locally. Need to make sure docker is running and i have a github token
+ready.
