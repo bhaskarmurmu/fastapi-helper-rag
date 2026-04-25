@@ -1,0 +1,14 @@
+# copy to .envrc and fill in. direnv will load it.
+export GROQ_API_KEY="gsk_..."
+export GEMINI_API_KEY="AIza..."          # used by Ragas judge
+export GITHUB_TOKEN="ghp_..."             # for issue ingestion (read-only)
+export QDRANT_URL="http://localhost:6333"
+export POSTGRES_URL="postgresql://postgres:postgres@localhost:5432/fastapi_helper"
+export LANGFUSE_HOST="http://localhost:3001"
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+export API_KEY="dev-secret-change-me"     # for X-API-Key header
+export LLM_PROVIDER="groq"                # or "gemini"
+export EMBEDDING_MODEL="BAAI/bge-small-en-v1.5"
+export RERANKER_MODEL="BAAI/bge-reranker-v2-m3"
+export LOG_LEVEL="INFO"

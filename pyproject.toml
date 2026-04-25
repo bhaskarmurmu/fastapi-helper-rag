@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fastapi-helper"
+version = "0.1.0"
+description = "Customer-support RAG over FastAPI docs and GitHub issues"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fastapi_helper"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "N"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fastapi_helper"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests requiring Docker (deselect with '-m \"not integration\"')",
+]
+asyncio_mode = "auto"

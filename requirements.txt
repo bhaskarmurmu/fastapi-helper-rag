@@ -1,0 +1,34 @@
+# Core backend
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# ML / embeddings (CPU-only torch recommended: install torch first via
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# then install this file)
+sentence-transformers==3.3.1
+
+# Vector DB
+qdrant-client==1.12.1
+
+# Relational DB
+psycopg[binary]==3.2.3
+sqlalchemy==2.0.36
+
+# LLM providers
+groq==0.13.0
+google-generativeai==0.8.3
+
+# Observability
+langfuse==2.55.0
+
+# Semantic cache
+diskcache==5.6.3
+
+# Ingestion utilities
+tiktoken==0.8.0
+httpx==0.28.0
+
+# API utilities
+slowapi==0.1.9

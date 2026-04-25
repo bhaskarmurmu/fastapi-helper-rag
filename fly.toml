@@ -1,0 +1,33 @@
+app = "fastapi-helper"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  LOG_LEVEL = "INFO"
+  LLM_PROVIDER = "groq"
+  EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+  RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    method = "GET"
+    timeout = "10s"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[[mounts]]
+  source = "model_cache"
+  destination = "/root/.cache/huggingface"
