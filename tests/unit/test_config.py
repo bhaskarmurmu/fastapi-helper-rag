@@ -6,6 +6,41 @@ from pydantic import ValidationError
 
 from fastapi_helper.config import Settings
 
+# Every env var that Settings reads (field name uppercased).
+# Must stay in sync with config.py fields.
+_SETTINGS_ENV_VARS: tuple[str, ...] = (
+    "API_KEY",
+    "CACHE_DIR",
+    "CACHE_SIMILARITY_THRESHOLD",
+    "CHUNK_OVERLAP",
+    "CHUNK_SIZE",
+    "CORS_ORIGINS",
+    "DATA_DIR",
+    "DENSE_TOP_K",
+    "EMBEDDING_DIM",
+    "EMBEDDING_MODEL",
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL",
+    "GITHUB_TOKEN",
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
+    "LANGFUSE_HOST",
+    "LANGFUSE_PUBLIC_KEY",
+    "LANGFUSE_SECRET_KEY",
+    "LLM_MAX_TOKENS",
+    "LLM_PROVIDER",
+    "LLM_TEMPERATURE",
+    "LOG_LEVEL",
+    "POSTGRES_URL",
+    "QDRANT_COLLECTION",
+    "QDRANT_URL",
+    "RATE_LIMIT_PER_MINUTE",
+    "RERANK_TOP_N",
+    "RERANKER_MODEL",
+    "RRF_K",
+    "SPARSE_TOP_K",
+)
+
 
 def make_settings(**overrides: object) -> Settings:
     """Create a Settings instance with controlled values.
@@ -17,6 +52,16 @@ def make_settings(**overrides: object) -> Settings:
 
 
 class TestDefaults:
+    @pytest.fixture(autouse=True)
+    def _isolate_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Clear every Settings-related env var for the duration of each test.
+
+        Ensures TestDefaults assertions reflect code defaults, not whatever the
+        host shell happens to have loaded (e.g. via direnv / .envrc).
+        """
+        for var in _SETTINGS_ENV_VARS:
+            monkeypatch.delenv(var, raising=False)
+
     def test_llm_provider_default(self) -> None:
         s = make_settings()
         assert s.llm_provider == "groq"
@@ -76,7 +121,7 @@ class TestDefaults:
 
     def test_api_key_default(self) -> None:
         s = make_settings()
-        assert s.api_key == "dev-secret-change-me"
+        assert s.api_key == "dev-secret-change-me", "api_key unexpectedly set from env"
 
     def test_cors_origins_default(self) -> None:
         s = make_settings()
@@ -92,11 +137,11 @@ class TestDefaults:
 
     def test_empty_secrets_default(self) -> None:
         s = make_settings()
-        assert s.groq_api_key == ""
-        assert s.gemini_api_key == ""
-        assert s.github_token == ""
-        assert s.langfuse_public_key == ""
-        assert s.langfuse_secret_key == ""
+        assert s.groq_api_key == "", "groq_api_key unexpectedly set from env"
+        assert s.gemini_api_key == "", "gemini_api_key unexpectedly set from env"
+        assert s.github_token == "", "github_token unexpectedly set from env"
+        assert s.langfuse_public_key == "", "langfuse_public_key unexpectedly set from env"
+        assert s.langfuse_secret_key == "", "langfuse_secret_key unexpectedly set from env"
 
 
 class TestOverrides:
