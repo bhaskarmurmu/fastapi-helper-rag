@@ -84,7 +84,7 @@ class TestDefaults:
 
     def test_reranker_model_default(self) -> None:
         s = make_settings()
-        assert s.reranker_model == "BAAI/bge-reranker-v2-m3"
+        assert s.reranker_model == "BAAI/bge-reranker-base"
 
     def test_chunk_size_default(self) -> None:
         s = make_settings()

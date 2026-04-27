@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # Embedding & rerank
     embedding_model: str = "BAAI/bge-small-en-v1.5"
-    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    reranker_model: str = "BAAI/bge-reranker-base"
     embedding_dim: int = 384
 
     # Retrieval

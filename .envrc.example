@@ -10,5 +10,5 @@ export LANGFUSE_SECRET_KEY="sk-lf-..."
 export API_KEY="dev-secret-change-me"     # for X-API-Key header
 export LLM_PROVIDER="groq"                # or "gemini"
 export EMBEDDING_MODEL="BAAI/bge-small-en-v1.5"
-export RERANKER_MODEL="BAAI/bge-reranker-v2-m3"
+export RERANKER_MODEL="BAAI/bge-reranker-base"
 export LOG_LEVEL="INFO"

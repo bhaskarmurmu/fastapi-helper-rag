@@ -9,7 +9,7 @@ primary_region = "sjc"
   LOG_LEVEL = "INFO"
   LLM_PROVIDER = "groq"
   EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-  RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+  RERANKER_MODEL = "BAAI/bge-reranker-base"
 
 [http_service]
   internal_port = 8080
