@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # Storage
     qdrant_url: str = "http://localhost:6333"
-    qdrant_collection: str = "fastapi_helper"
+    qdrant_collection: str = "fastapi_helper_chunks"
     postgres_url: str = "postgresql://postgres:postgres@localhost:5432/fastapi_helper"
 
     # Observability (3001 matches docker-compose.yml port mapping)

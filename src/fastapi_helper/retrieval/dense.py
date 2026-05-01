@@ -38,7 +38,7 @@ class DenseRetriever:
         self,
         client: QdrantClient,
         embedder: Embedder,
-        collection: str = "fastapi_chunks",
+        collection: str = "fastapi_helper_chunks",
         top_k: int = 30,
     ) -> None:
         self._client = client

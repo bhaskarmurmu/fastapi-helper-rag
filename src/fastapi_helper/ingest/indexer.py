@@ -15,7 +15,7 @@ from fastapi_helper.ingest.chunker import Chunk
 
 log = logging.getLogger(__name__)
 
-COLLECTION = "fastapi_chunks"
+COLLECTION = "fastapi_helper_chunks"
 _QDRANT_BATCH = 100
 
 _DDL = """\

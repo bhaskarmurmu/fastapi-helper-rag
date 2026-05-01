@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PYTHONPATH=src
+
 mkdir -p data/raw
 
 # Clone or pull FastAPI repo

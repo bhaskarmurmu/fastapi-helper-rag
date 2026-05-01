@@ -20,7 +20,7 @@ from fastapi_helper.ingest.issues_loader import load_issues
 
 log = logging.getLogger(__name__)
 
-_FASTAPI_REPO = Path(__file__).parents[4] / "data" / "raw" / "fastapi"
+_FASTAPI_REPO = Path(__file__).parents[3] / "data" / "raw" / "fastapi"
 
 
 # ---------------------------------------------------------------------------
