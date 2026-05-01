@@ -108,3 +108,262 @@ Lessons:
   going forward. The Windows-side copy in OneDrive is no longer used.
 
 Tomorrow: actually start Phase 2 (ingestion).
+
+
+
+
+
+- docs_loader gotcha: FastAPI's MkDocs uses `{ #anchor-id }` syntax in H1 
+  headings. Naive title extraction picks up "About { #about }" instead of 
+  just "About". Needed a second regex pass to strip the anchor fragment.
+
+
+
+
+
+
+- chunker emits oversized chunks for code blocks rather than splitting them.
+  5 oversized blocks in FastAPI corpus, max 1084 tokens. Right call — splitting
+  code mid-function would break retrieval. Tradeoff: uneven chunk distribution
+  (max 3861 chars vs avg 1658).
+- noise in corpus: data/raw/fastapi/docs/en/_llm-test.md is a meta-test file
+  for FastAPI's translation system. Decided to leave it for now and revisit
+  during eval if it surfaces incorrectly.
+- 153 docs → 988 chunks, avg 1658 chars. metadata (source_url, title,
+  section_path) preserved on every chunk. spot-checked sample chunks: real
+  readable docs text, not fragments.
+
+
+
+  - embedder uses sentence-transformers with BGE-small-en-v1.5 (384-dim, L2-normalized).
+  verified all output norms ≈ 1.0 → can use dot product instead of cosine in Qdrant.
+- batch size [whatever it is] from Settings. CPU-only WSL, so [reasoning about why
+  that batch size — fits in memory / good throughput].
+- 13 unit tests mock SentenceTransformer to avoid model download in tests. Real
+  embedding only verified in integration. clean separation.
+
+
+
+
+
+
+  - step (e) verified directly via psql, not just via the indexer's smoke test:
+  - chunks table: 80 rows, unique chunk_ids
+  - tsvector populated (length 682 for sample row)
+  - BM25 query "middleware request" → 5 hits, all from /middleware/. correct.
+- chose Distance.DOT in qdrant since BGE embeddings are L2-normalized
+  (verified earlier: norms = 1.0 exactly). dot product is cheaper than
+  cosine and equivalent for unit vectors.
+- chunk_id = uuid from sha256(source_url:chunk_index). deterministic
+  → upserts are idempotent. ON CONFLICT DO UPDATE in postgres, native
+  upsert in qdrant.
+- relaxed smoke test from "exact UUID match" to "score >= 0.9999"
+  because identical text in different files (license headers etc.)
+  produces identical embeddings and any of them is a legitimate hit.
+  ADR-worthy. (will write up in Phase 2 wrap.)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ## 2026-04-27 — day 3: phase 2, ingestion pipeline end-to-end
+
+Long day. Started with Docker not working (admin restrictions), pivoted
+through Codespaces (couldn't auth Claude Code there), then discovered WSL
+could install on this locked-down laptop and got the original spec stack
+running. Most of "today" was actually that environment fight, but once it
+worked, Phase 2 went smoothly across ~7-8 hours.
+
+Built (in order):
+- docker-compose with qdrant + postgres + langfuse (self-hosted)
+- docs_loader: clones FastAPI repo, parses MkDocs files, strips YAML
+  frontmatter and {#anchor} fragments from H1s. 153 docs.
+- chunker: token-aware splitter that preserves code blocks intact even
+  when they exceed chunk_size. 988 chunks from docs. Avg 1658 chars,
+  max 3861 (one of those oversized code blocks).
+- embedder: sentence-transformers wrapping BGE-small-en-v1.5. 384 dim,
+  L2-normalized (verified empirically: norms = 1.0 exactly), float32.
+- indexer: dual-write to qdrant (DOT distance) and postgres (text +
+  GENERATED tsvector + GIN index). Shared chunk_id from sha256 hash —
+  deterministic, idempotent.
+- issues_loader: GitHub REST + httpx with redirect following. Filters
+  PRs (which REST treats as issues). Includes comments. 80 issues
+  across 297 chunks.
+- run.py: full orchestrator. Total: 1285 chunks indexed.
+
+Things I learned / had to think about:
+
+1. Code-block preservation in chunking is a real tradeoff. Splitting a
+   function in the middle breaks retrieval — fragments can't reason
+   about code. Chose oversized chunks over fragmented code. 5 chunks
+   exceeded chunk_size (max 1084 tokens); accepted as deliberate choice.
+
+2. BGE embeddings are L2-normalized natively, which means dot product
+   ≡ cosine for them. Configured Qdrant with Distance.DOT instead of
+   COSINE — mathematically equivalent, slightly cheaper. Verified
+   empirically with norms() before committing.
+
+3. Smoke-test relaxation: original assertion was "round-trip retrieval
+   returns the exact UUID I indexed." Failed for chunks with identical
+   text in different files (license headers, etc.). Relaxed to
+   "score >= 0.9999" which is the right behavior for production too.
+
+4. tiangolo/fastapi → fastapi/fastapi rename: GitHub redirects (301)
+   transparently via httpx, but stored source_urls still use the old
+   org. Decided to leave it — GitHub's redirect is stable, and a
+   migration to canonical URLs would add complexity for marginal gain.
+
+5. `since` filter on GitHub API uses updated_at, not created_at. Old
+   issues that get reopened or commented on appear in "recent" pulls.
+   Turned out useful — those are exactly the relevant issues for
+   support RAG.
+
+Verifications:
+- 139 unit tests passing
+- 1285 chunks confirmed in both qdrant and postgres (exact match)
+- BM25 query "background tasks" → top hit /tutorial/background-tasks/ ✓
+- Dense query "how do I add middleware" → top hit /tutorial/middleware/ ✓
+- Re-run produces same counts (idempotency)
+
+Tomorrow: phase 3, hybrid retrieval. Plan to wire dense + BM25
+together via RRF, add the BGE reranker on top of the fused list,
+verify end-to-end query latency. Should take 4-5 hours fresh.
+
+
+
+
+
+- step (c) RRF fusion verified empirically. for query "dependency
+  injection with yield", dense missed the relevant doc entirely (not
+  in top-5) but sparse caught it (rank 2). fusion lifted it to position
+  3 of the fused result. that's the case for hybrid in one observation.
+- RRF score for k=60 + dense_rank=1 + sparse_rank=2 = 1/61 + 1/62
+  = 0.03252. tiny absolute number; relative ordering is what matters.
+  worth flagging for future me if fusion ever "looks broken" in logs.
+- test fixture bug caught: chunks with single-letter URLs collide on
+  identity key (url, chunk_index) when test data is too minimal. fix:
+  use distinct realistic-looking fixtures. lesson: tests with single-
+  letter inputs hide identity bugs that real data would expose.
+
+
+
+  ## 2026-04-28 — day 4: phase 3, hybrid retrieval pipeline
+
+Five steps today. Built the heart of RAG: query in, ranked relevant
+chunks out. Dense + sparse + RRF fusion + cross-encoder reranker, all
+chained.
+
+Steps:
+- (a) DenseRetriever wraps qdrant query_points. DI for embedder so
+  the model is shared across queries (130MB, 3-5s warmup).
+  RetrievedChunk pydantic model is the shared currency throughout
+  the pipeline.
+- (b) SparseRetriever wraps postgres tsvector with ts_rank.
+  plainto_tsquery with AND semantics — flagged as a future fix if
+  Phase 11 evals show low BM25 recall.
+- (c) RRF fusion. Pure function, k=60. The math is simple but easy
+  to get wrong — caught a test fixture bug where chunks with
+  single-letter URLs collided on (url, idx) identity. Distinct
+  realistic fixtures matter.
+- (d) Cross-encoder reranker. Original spec called for BGE-reranker-v2-m3
+  but that's 15-22 seconds on CPU per query. Unworkable. Swapped to
+  bge-reranker-base — 3s warm. Quality differences are at ranks 3-5
+  within closely-scored candidates; major semantic judgments unchanged.
+  ADR-0004 documents the v2-m3 vs base tradeoff and the GPU upgrade
+  path for production.
+- (e) Retriever orchestrator with configurable components for ablation.
+  enable_sparse and enable_rerank as parameters so Phase 11 evaluation
+  can compare configurations.
+
+Key empirical findings:
+- Hybrid retrieval real value, measured: for query "dependency injection
+  with yield", dense missed the relevant doc page entirely (not in
+  top-5) but BM25 caught it via keyword match on "yield". Fusion lifted
+  it to rank 3.
+- Cross-encoder vs RRF make different mistakes: for "background tasks
+  + DI + DB session", RRF picked the canonical tutorial first; reranker
+  promoted a release-notes chunk that specifically covered the pattern
+  asked about. RRF aggregates votes across retrievers; reranker reads
+  query+chunk jointly.
+- Score distribution itself is signal: a query with all reranker scores
+  in the 0.4-0.5 range tells you the corpus has thin coverage. A query
+  with scores in 0.85+ tells you the corpus has direct answers. Future
+  ADR — confidence-aware response generation.
+
+Latency breakdown (CPU, warm):
+- Dense:    70-148ms
+- Sparse:   1-20ms
+- Fusion:   <1ms
+- Rerank:   3.0-4.7s    ← dominates. 95% of total latency.
+- Total:    3.2-7.0s
+The reranker is the cost. Production with GPU would drop total to <1s.
+
+Architecture lessons:
+- Bi-encoder vs cross-encoder cost asymmetry. Embedder runs once per
+  query (amortized). Reranker runs once per (query, candidate) pair.
+  N candidates means N forward passes, no parallelism on CPU. This
+  is why GPU matters more for rerankers than embedders.
+- Empty-list-as-natural-signal threads cleanly through every layer.
+  Each retriever returns list[RetrievedChunk]. Empty composes correctly:
+  fusion of empty + empty → empty, reranker on empty → empty, retrieve()
+  on empty → empty, API layer maps empty to "no information found".
+  No exceptions, no sentinels, no special cases.
+- DI pays off. Every retriever takes its dependencies via constructor
+  rather than instantiating internally. Mocking is trivial; tests run
+  fast; the contract is explicit.
+
+Tests: 259 unit tests passing across the full retrieval package.
+
+Tomorrow: Phase 4, generation. LLM call wrapping the retrieved chunks
+into a prompt, citation handling, response streaming. With retrieval
+solid, generation is mostly prompt engineering.
+
+
+
+
+- step (a) prompt design: spent meaningful time on Rule 1's grounding 
+  scope. original draft said "use ONLY the provided context" which 
+  contradicted the permitted use of general programming knowledge for 
+  interpretation. fix: precisely scope to "FastAPI-specific claims must 
+  come from sources" while explicitly permitting general programming 
+  concepts (Python, HTTP, async/await) for interpretation. without this 
+  the LLM would either refuse questions where async knowledge is needed 
+  to explain FastAPI docs, or hallucinate FastAPI specifics.
+- Rule 6 (partial answers) is what makes the system useful for compound 
+  questions. without it, "deploy FastAPI to AWS Lambda with JWT auth" 
+  forces a full refusal because Lambda+JWT specifics may not be in the 
+  corpus. with it, deployment portion gets answered (citations) and 
+  the gap is explicitly flagged.
+- REFUSAL_SIGNAL is verbatim in the prompt so Phase 11 evaluation can 
+  string-match it. partial-answer detection uses looser substring match 
+  ("cannot answer from the provided sources").
+- "every factual claim needs a citation" is followed imperfectly by 
+  LLMs (~80-90% compliance is realistic). the citation extractor in 
+  step (c) handles this by validating cited indices exist, not by 
+  enforcing per-claim citation density.
+
+
+
+  - step (b) verified the prompt design from step (a) actually works in
+  practice. first real LLM call: model cited [2] for code, [1] for 
+  descriptive claim, copied code verbatim from source, no invented 
+  imports. exactly the behavior Rules 2/3/5 are designed to elicit. 
+  this is the moment the prompt review paid off — building everything 
+  else on top of a verified-working prompt.
+- TTFT (time to first token) ~278ms streaming. total streaming response 
+  ~560ms. non-streaming ~711ms. acceptable for an interactive system.
+  user-perceived: full pipeline projects to ~3.5s first-token (dominated 
+  by reranker on CPU; reranker drops dramatically on GPU).
+- groq quirk: streaming and non-streaming token counts differ by 1 on 
+  identical prompts (627 vs 628). expected behavior, not a bug. 
+  worth flagging for phase 11 eval so cost-per-query metrics aren't 
+  misread as inconsistent.

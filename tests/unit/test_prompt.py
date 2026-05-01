@@ -65,7 +65,10 @@ def test_system_prompt_contains_refusal_signal() -> None:
 
 
 def test_system_prompt_instructs_sources_only() -> None:
-    assert "ONLY from the provided sources" in SYSTEM_PROMPT
+    # Rule 1 restricts FastAPI-specific claims to the provided sources.
+    # The phrasing changed from "ONLY" to "must come from" with the softening
+    # clause that permits general programming knowledge for interpretation.
+    assert "must come from the provided sources" in SYSTEM_PROMPT
 
 
 def test_system_prompt_instructs_inline_citation() -> None:
